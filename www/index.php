@@ -8,6 +8,7 @@ class TrendsApp
 {
     const SET_NAME = '_topics';
     const TRENDS_INTERVAL = 60 *60;
+    const DATE_SUFFIX_FORMAT = 'Hi';
     const CONNECTION_ARGS = 'tcp://cache:6379';
 
     private static $connection;
@@ -24,7 +25,7 @@ class TrendsApp
     public static function incrementTopic( string $topic, int $by=1 )
     {
         $redis = self::getRedis();
-        $setname = self::SET_NAME . '_' . date( 'Hi' );
+        $setname = self::SET_NAME . '_' . date( self::DATE_SUFFIX_FORMAT );
         $redis->zincrby( $setname, $by, $topic );
 
         if ( $redis->ttl( $setname ) < 0 ) {
