@@ -11,9 +11,13 @@ composer require predis/predis
 ```php
 // incrementing topics (@return void)
 TrendsApp::incrementTopic( string $topic, int $increment_by_score=1 );
+// e.g
+TrendsApp::incrementTopic( 'test', 2 );
 
 // listing topics (@return array)
-TrendsApp::getTopics( $limit );
+TrendsApp::getTopics( int $limit );
+// e.g top 10
+TrendsApp::getTopics( 10 );
 ```
 
 #### Config
