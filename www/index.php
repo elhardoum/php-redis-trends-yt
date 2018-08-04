@@ -6,57 +6,61 @@ use Predis\Client;
 
 class TrendsApp
 {
-    const DEFAULT_EXPIRE = 60 *60 *24; # daily
+    const SET_NAME = '_topics';
+    const TRENDS_INTERVAL = 60 *60;
+    const CONNECTION_ARGS = 'tcp://cache:6379';
 
-    static function getRedis()
+    private static $connection;
+
+    private static function getRedis()
     {
-        return new Client('tcp://cache:6379');
+        if ( ! isset( self::$connection ) || ! self::$connection instanceOf \Predis\Client ) {
+            self::$connection = new Client( self::CONNECTION_ARGS );
+        }
+
+        return self::$connection;
     }
 
-    static function incrementTopic(string $set, string $member, int $by=1) : void
+    public static function incrementTopic( string $topic, int $by=1 )
     {
-        $setid = "trends_{$set}" . date('mdH');
-
         $redis = self::getRedis();
+        $setname = self::SET_NAME . '_' . date( 'Hi' );
+        $redis->zincrby( $setname, $by, $topic );
 
-        $redis->zincrby($setid, (int) $by, $member);
-
-        if ( $redis->ttl($setid) <= 0 ) {
-            $redis->expire($setid, self::DEFAULT_EXPIRE);
+        if ( $redis->ttl( $setname ) < 0 ) {
+            $redis->expire( $setname, self::TRENDS_INTERVAL );
         }
     }
 
-    static function getTopics(string $set, int $limit=10) : array
+    public static function getTopics( int $limit ) : array
     {
         $redis = self::getRedis();
+        $topics = [];
 
-        if ( $sets = $redis->keys( "trends_{$set}*" ) ) {
-            $items = [];
+        if ( $sets = $redis->keys( self::SET_NAME . '_*' ) ) {
+            foreach ( $sets as $set ) {
+                $items = $redis->zrevrangebyscore( $set, '+inf', '-inf', 'withscores', 'limit', '0', $limit );
 
-            foreach ( $sets as $setName ) {
-                if ( $list = array_map('intval', $redis->zrevrangebyscore( $setName, '+inf', '-inf', 'withscores', 'limit', 0, $limit )) ) {
-                    foreach ( $list as $k=>$v ) {
-                        if ( ! isset( $items[ $k ] ) ) {
-                            $items[ $k ] = 0;
-                        }
-
-                        $items[ $k ] += $v;
+                if ( $items = array_map('intval', $items) ) {
+                    foreach ( $items as $t => $score ) {
+                        $topics[ $t ] = ( $topics[ $t ] ?: 0 ) + $score;
                     }
                 }
             }
 
-            arsort($items);
-
-            return array_slice($items, 0, $limit);
+            arsort( $topics );
+            $topics = array_slice($topics, 0, $limit);
         }
 
-        return [];
+        return $topics;
     }
 }
 
-var_dump( TrendsApp::incrementTopic('pets', 'dog', 1) );
-var_dump( TrendsApp::incrementTopic('pets', 'goat', 2) );
-var_dump( TrendsApp::incrementTopic('pets', 'cat', 5) ); # cats rule
-var_dump( TrendsApp::incrementTopic('pets', 'bird', 3) );
+// incrementing topics
+// TrendsApp::incrementTopic( 'twitter', 1 );
+// TrendsApp::incrementTopic( 'linkedin', 4 );
+// TrendsApp::incrementTopic( 'youtube', 2 );
+// TrendsApp::incrementTopic( 'amazon', 10 );
 
-var_dump( TrendsApp::getTopics('pets', 10) );
+// listing topics
+var_dump( TrendsApp::getTopics( 2 ) );
